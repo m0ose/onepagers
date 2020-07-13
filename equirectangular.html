@@ -1,0 +1,128 @@
+<html>
+    <head>
+        <title>Equirectangular coordinate test</title>
+        <script src="https://unpkg.com/mathjs@7.0.2/dist/math.js"></script>
+    </head>
+    <body>
+
+        <script type="module">
+            import {
+                World,
+                Model,
+                util,
+            } from 'https://backspaces.github.io/agentscript/dist/agentscript.esm.js'
+            import Shapes from 'https://backspaces.github.io/agentscript/src/Shapes.js'
+            import ColorMap from 'https://backspaces.github.io/agentscript/src/ColorMap.js'
+            import TwoDraw from 'https://backspaces.github.io/agentscript/src/TwoDraw.js'
+            // import * as mathjs from 'https://unpkg.com/mathjs@7.0.2/dist/math.js' // no filename extensions ughh
+
+            console.log(math)
+            const pi = Math.PI
+            const sin = Math.sin
+            const cos = Math.cos
+
+            class PlanetModel extends Model {
+                constructor() {
+                    super(World.defaultOptions(pi,pi/2)) // Default "NL" world
+         
+                }
+                setup() {
+                    
+                    for(let x=-45; x<=45; x=x+3) {
+                        for(let y=-45; y<=45; y=y+3) {
+                            this.turtles.create(1, t => {
+                                t.setxy(0,0)
+                                t.phi = x
+                                t.theta = y
+                            })
+                        }
+                    }
+                }
+                step() {
+                    const fov = parseFloat(document.getElementById('fov').value)
+                    const Rx = parseFloat(document.getElementById('Rx').value)*pi/180
+                    const Ry = parseFloat(document.getElementById('Ry').value)*pi/180
+                    const Rz = parseFloat(document.getElementById('Rz').value)*pi/180
+                    this.turtles.forEach((t)=>{
+                        const fov2 = (fov/90)
+                        // console.log(fov,fov2)
+                        const phi2 = (fov2 * t.phi)*pi/180
+                        const theta2 = ((fov2 * t.theta)+90)*pi/180
+                        const {phi, theta} = toEquirect(phi2, theta2,Rx,Ry,Rz)
+                        t.setxy(phi,theta)
+                    })
+                }
+            }
+
+            /**
+            This is the conversion function from phi theta of image, 'though not actually of a planar image yet. 
+            **/
+            function toEquirect(phi, theta, rx,ry,rz) {
+                const r=1
+                const x = r*sin(theta)*cos(phi)
+                const y = r*sin(theta)*sin(phi)
+                const z = r*cos(theta)
+                // rotate the angles/points
+                const Rx = [[1,0,0],[0, cos(rx), -sin(rx)],[0,sin(rx), cos(rx)]]
+                const Ry = [[cos(ry), 0, sin(ry)],[0,1,0],[-sin(ry),0, cos(ry)]]
+                const Rz = [[cos(rz), -sin(rz),0],[sin(rz), cos(rz),0],[0,0,1]]
+                const xyz2 = math.multiply(Rx,[x,y,z])
+                const xyz3 = math.multiply(Ry,xyz2)
+                const [x4,y4,z4] = math.multiply(Rz,xyz3)
+                // convert to phi theta map equirectangular map
+                const phi2 = Math.atan2(y4, x4)
+                const theta2 = Math.atan2(Math.hypot(x4,y4),z4)
+                return({phi:phi2, theta:theta2})
+            }
+
+            const shapes = new Shapes()
+            const colorMap = ColorMap.Bright16
+            const model = new PlanetModel()
+            model.setup()
+
+            util.toWindow({ model, util, World })
+
+            // Use the model's world for the view:
+            const drawOptions = {
+                    turtleShape: 'circle',
+                    turtlesColor: 'random',
+                    turtlesSize: 0.1,
+                    // patchColor: 'black', // how to ????
+                }
+      
+            const view = new TwoDraw(model, { div:'modelDiv',patchSize: 128 }, drawOptions)
+            function draw() {
+                view.clear('black')
+                view.draw()
+            }
+
+            util.timeoutLoop(
+                () => {
+                    model.step()
+                    draw()
+                },
+                9000,
+                33
+            ).then(() => console.log('done'))
+            
+        </script>
+        <div id='modelDiv'></div>
+        <div>
+            <form>
+                FOV:    
+                    <output id="fovVal">45</output>
+                    <input type="range" min=0 max=180 value=45 id='fov' oninput="fovVal.value = fov.value"></input><br>
+                Rx: 
+                    <output id="RxVal">45</output>
+                    <input type="range" min=-180 max=180 value=0 id='Rx' oninput="RxVal.value = Rx.value"></input><br>
+                Ry: 
+                    <output id="RyVal">45</output>
+                    <input type="range" min=-180 max=180 value=0 id='Ry' oninput="RyVal.value = Ry.value"></input><br>
+                Rz: 
+                    <output id="RzVal">45</output>
+                    <input type="range" min=-180 max=180 value=0 id='Rz' oninput="RzVal.value = Rz.value"></input><br>
+
+            </form>
+        </div>
+    </body>
+</html>
