@@ -1,9 +1,9 @@
-import util from "https://m0ose.github.io/agentscript/src/util.js";
+import util from "https://agentscript.org/src/util.js";
 // You only need one of these but this is simpler than dynamic import()
-import TwoDraw from "https://m0ose.github.io/agentscript/tests/TwoDraw.js";
-import TwoView from "https://m0ose.github.io/agentscript/src/TwoView.js";
+import TwoDraw from "https://agentscript.org/tests/TwoDraw.js";
+import TwoView from "https://agentscript.org/src/TwoView.js";
 // Only needed by TwoView, built into TwoDraw
-import ColorMap from "https://m0ose.github.io/agentscript/src/ColorMap.js";
+import ColorMap from "https://agentscript.org/src/ColorMap.js";
 
 // These are the default parameters for TwoDraw:
 //   patchColor: undefined, // random gray
