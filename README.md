@@ -67,7 +67,7 @@ Then to get page metadata locally:
 
     git pull origin master
 
-See it here: [https://backspaces.github.io/onepagers/](https://backspaces.github.io/onepagers/)
+See it here: [https://m0ose.github.io/onepagers/](https://m0ose.github.io/onepagers/)
 
 Rinse and repeat:
 
