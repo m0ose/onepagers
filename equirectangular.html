@@ -23,7 +23,7 @@
 
             class PlanetModel extends Model {
                 constructor() {
-                    super(World.defaultOptions(pi,pi/2)) // Default "NL" world
+                    super(World.defaultOptions(pi,pi*0.66)) // Default "NL" world
          
                 }
                 setup() {
@@ -49,7 +49,7 @@
                         const phi2 = (fov2 * t.phi)*pi/180
                         const theta2 = ((fov2 * t.theta)+90)*pi/180
                         const {phi, theta} = toEquirect(phi2, theta2,Rx,Ry,Rz)
-                        t.setxy(phi,theta)
+                        t.setxy(phi,theta-pi/2)
                     })
                 }
             }
