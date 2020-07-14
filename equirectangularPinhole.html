@@ -1,6 +1,6 @@
 <html>
     <head>
-        <title>Equirectangular coordinate test</title>
+        <title>Equirectangular coordinate from pinhole camera</title>
         <script src="https://unpkg.com/mathjs@7.0.2/dist/math.js"></script>
     </head>
     <body>
@@ -23,7 +23,7 @@
 
             class PlanetModel extends Model {
                 constructor() {
-                    super(World.defaultOptions(pi,pi*0.66)) // Default "NL" world
+                    super(World.defaultOptions(1.5*pi,pi*0.66)) // Default "NL" world
          
                 }
                 setup() {
@@ -32,8 +32,8 @@
                         for(let y=-45; y<=45; y=y+3) {
                             this.turtles.create(1, t => {
                                 t.setxy(0,0)
-                                t.phi = x
-                                t.theta = y
+                                t.imgX = x/45
+                                t.imgY = y/45
                             })
                         }
                     }
@@ -44,33 +44,32 @@
                     const Ry = parseFloat(document.getElementById('Ry').value)*pi/180
                     const Rz = parseFloat(document.getElementById('Rz').value)*pi/180
                     this.turtles.forEach((t)=>{
-                        const fov2 = (fov/90)
                         // console.log(fov,fov2)
-                        const phi2 = t.phi/45
-                        const theta2 = t.theta/45
-                        const {phi, theta} = toEquirect2(fov, phi2, theta2,Rx,Ry,Rz)
-                        t.setxy(phi,theta-pi/2) // rotate down to point along y axis
+                        const x2 = t.imgX
+                        const y2 = t.imgY
+                        const {phi, theta} = toEquirectFromPlane(x2, y2, fov,Rx,Ry,Rz)
+                        t.setxy(phi-pi/3,theta-pi/2) 
                     })
                 }
             }
 
-            function getAngleInFishEye(fov, x,y) {
-
-            }
             /**
             This is the conversion function from phi theta of image, 'though not actually of a planar image yet. 
             **/
-            function toEquirect2(phi, theta, rx,ry,rz) {
-                const r=1
-                const x = r*sin(theta)*cos(phi)
-                const y = r*sin(theta)*sin(phi)
-                const z = r*cos(theta)
+            function toEquirectFromPlane(x0, y0, fov, rx,ry,rz) {
+                const k = 1
+                // calculate the size of plane given field of view
+                const r= k * Math.tan((fov*pi/180)/2)
+                // put points on a plane
+                const x1 = r * x0
+                const y1 = 1
+                const z1 = r * y0
                 // rotate the angles/points
                 const Rx = [[1,0,0],[0, cos(rx), -sin(rx)],[0,sin(rx), cos(rx)]]
                 const Ry = [[cos(ry), 0, sin(ry)],[0,1,0],[-sin(ry),0, cos(ry)]]
                 const Rz = [[cos(rz), -sin(rz),0],[sin(rz), cos(rz),0],[0,0,1]]
-                const xyz2 = math.multiply(Rx,[x,y,z])
-                const xyz3 = math.multiply(Ry,xyz2)
+                const xyz2 = math.multiply(Ry,[x1,y1,z1])
+                const xyz3 = math.multiply(Rx,xyz2)
                 const [x4,y4,z4] = math.multiply(Rz,xyz3)
                 // convert to phi theta map equirectangular map
                 const phi2 = Math.atan2(y4, x4)
@@ -89,7 +88,7 @@
             const drawOptions = {
                     turtleShape: 'circle',
                     turtlesColor: 'random',
-                    turtlesSize: 0.1,
+                    turtlesSize: 0.05,
                     // patchColor: 'black', // how to ????
                 }
       
@@ -114,6 +113,7 @@
                 width:80%;
             }
         </style>
+        <h2>Equirectangular of pinhole model</h2>
         <div id='modelDiv'></div>
         <div>
             <form>
@@ -121,13 +121,13 @@
                     <output id="fovVal">45</output>
                     <input type="range" min=0 max=180 value=45 id='fov' oninput="fovVal.value = fov.value"></input><br>
                 Rx: 
-                    <output id="RxVal">45</output>
+                    <output id="RxVal">0</output>
                     <input type="range" min=-180 max=180 value=0 id='Rx' oninput="RxVal.value = Rx.value"></input><br>
                 Ry: 
-                    <output id="RyVal">45</output>
+                    <output id="RyVal">0</output>
                     <input type="range" min=-180 max=180 value=0 id='Ry' oninput="RyVal.value = Ry.value"></input><br>
                 Rz: 
-                    <output id="RzVal">45</output>
+                    <output id="RzVal">0</output>
                     <input type="range" min=-180 max=180 value=0 id='Rz' oninput="RzVal.value = Rz.value"></input><br>
 
             </form>
