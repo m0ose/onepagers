@@ -23,7 +23,7 @@
 
             class PlanetModel extends Model {
                 constructor() {
-                    super(World.defaultOptions(1.5*pi,pi*0.66)) // Default "NL" world
+                    super(World.defaultOptions(1.0*pi,pi*0.5)) // Default "NL" world
          
                 }
                 setup() {
@@ -32,8 +32,8 @@
                         for(let y=-15; y<=15; y=y+1) {
                             this.turtles.create(1, t => {
                                 t.setxy(0,0)
-                                t.imgX = x/15
-                                t.imgY = y/15
+                                t.u = x/15
+                                t.v = y/15
                             })
                         }
                     }
@@ -45,8 +45,8 @@
                     const Rz = parseFloat(document.getElementById('Rz').value)*pi/180
                     this.turtles.forEach((t)=>{
                         // console.log(fov,fov2)
-                        const x2 = t.imgX
-                        const y2 = t.imgY
+                        const x2 = t.u
+                        const y2 = t.v
                         const {phi, theta} = toEquirectFromPlane(x2, y2, fov,Rx,Ry,Rz)
                         t.setxy(phi,theta-pi/2) 
                     })
@@ -56,14 +56,14 @@
             /**
             This is the conversion function from phi theta of image, 'though not actually of a planar image yet. 
             **/
-            function toEquirectFromPlane(x0, y0, fov, rx,ry,rz) {
+            function toEquirectFromPlane(u, v, fov, rx,ry,rz) {
                 const k = 1
                 // calculate the size of plane given field of view
                 const r= k * Math.tan((fov*pi/180)/2)
                 // put points on a plane
                 const x1 = 1 
-                const y1 = r * x0
-                const z1 = r * y0
+                const y1 = r * u
+                const z1 = r * v
                 // rotate the angles/points
                 const Rx = [[1,0,0],[0, cos(rx), -sin(rx)],[0,sin(rx), cos(rx)]]
                 const Ry = [[cos(ry), 0, sin(ry)],[0,1,0],[-sin(ry),0, cos(ry)]]
