@@ -28,12 +28,12 @@
                 }
                 setup() {
                     
-                    for(let x=-45; x<=45; x=x+3) {
-                        for(let y=-45; y<=45; y=y+3) {
+                    for(let x=-15; x<=15; x=x+1) {
+                        for(let y=-15; y<=15; y=y+1) {
                             this.turtles.create(1, t => {
                                 t.setxy(0,0)
-                                t.imgX = x/45
-                                t.imgY = y/45
+                                t.imgX = x/15
+                                t.imgY = y/15
                             })
                         }
                     }
@@ -48,7 +48,7 @@
                         const x2 = t.imgX
                         const y2 = t.imgY
                         const {phi, theta} = toEquirectFromPlane(x2, y2, fov,Rx,Ry,Rz)
-                        t.setxy(phi-pi/3,theta-pi/2) 
+                        t.setxy(phi,theta-pi/2) 
                     })
                 }
             }
@@ -61,15 +61,15 @@
                 // calculate the size of plane given field of view
                 const r= k * Math.tan((fov*pi/180)/2)
                 // put points on a plane
-                const x1 = r * x0
-                const y1 = 1
+                const x1 = 1 
+                const y1 = r * x0
                 const z1 = r * y0
                 // rotate the angles/points
                 const Rx = [[1,0,0],[0, cos(rx), -sin(rx)],[0,sin(rx), cos(rx)]]
                 const Ry = [[cos(ry), 0, sin(ry)],[0,1,0],[-sin(ry),0, cos(ry)]]
                 const Rz = [[cos(rz), -sin(rz),0],[sin(rz), cos(rz),0],[0,0,1]]
-                const xyz2 = math.multiply(Ry,[x1,y1,z1])
-                const xyz3 = math.multiply(Rx,xyz2)
+                const xyz2 = math.multiply(Rx,[x1,y1,z1])
+                const xyz3 = math.multiply(Ry,xyz2)
                 const [x4,y4,z4] = math.multiply(Rz,xyz3)
                 // convert to phi theta map equirectangular map
                 const phi2 = Math.atan2(y4, x4)
