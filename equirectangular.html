@@ -46,10 +46,10 @@
                     this.turtles.forEach((t)=>{
                         const fov2 = (fov/90)
                         // console.log(fov,fov2)
-                        const phi2 = t.phi/45
-                        const theta2 = t.theta/45
-                        const {phi, theta} = toEquirect2(fov, phi2, theta2,Rx,Ry,Rz)
-                        t.setxy(phi,theta-pi/2) // rotate down to point along y axis
+                        const phi2 = (fov2 * t.phi)*pi/180
+                        const theta2 = ((fov2 * t.theta)+90)*pi/180
+                        const {phi, theta} = toEquirect2(phi2, theta2,Rx,Ry,Rz)
+                        t.setxy(phi,theta-pi/2)
                     })
                 }
             }
