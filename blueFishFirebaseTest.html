@@ -1,0 +1,116 @@
+<html>
+     <!-- Insert these scripts at the bottom of the HTML, but before you use any Firebase services -->
+
+  <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+  <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-database.js"></script>
+
+<script type='module'>
+
+
+
+
+    const firebaseConfig= {
+        apiKey: 'AIzaSyB3BAVvnb_0vNx_vO483QnskTOkgW3CAcM',
+        databaseURL: 'https://bluefish.firebaseio.com',
+        projectId: 'firebase-bluefish',
+    }
+
+    const fbApp = firebase.initializeApp(
+        firebaseConfig,
+        'bluefishDomain'
+    )
+
+    const db = fbApp.database()
+    const rootRef = db.ref().child('stressTests')
+
+    rootRef.set({'hello':'world 2'})
+
+    // setup agents
+    const count = 5
+    let agents= []
+    for(let i =0;i<count;i++){
+        const id = Math.floor(Math.random()*Number.MAX_SAFE_INTEGER)
+        const ag = {
+            x:0,
+            y:0,
+            id:id,
+            ref:rootRef.child(id)
+        }
+        ag.ref.set({x:ag.x, y:ag.y,id:ag.id})
+        // ag.ref.child('id').on('value',(snap)=>{
+        //     const val = snap.val()
+        //     const id = snap.ref.parent.key
+        //     if(val == null){
+        //         //delete
+        //         console.log('delete by value',id)
+        //         removeByID(id)
+        //     }
+        // })
+        agents.push(ag)
+    }
+
+    rootRef.on('child_removed',(snap)=>{
+        const val = snap.val()
+        const id = snap.ref.key
+        console.log('deleted', val)
+       removeByID(id)
+    })
+
+    rootRef.on('child_added',(snap)=>{
+        const val = snap.val()
+        const id = snap.ref.key
+        console.log('child added', id, val)
+    })
+
+    function removeByID(id) {
+        const id2 = parseInt(id)
+        const ag = agents.filter(a=>a.id == id2)
+        if(ag[0]){
+            ag[0].ref.off()
+        } else {
+            console.warn('agent with id', id2, 'does not exist')
+        }
+        const newList = agents.filter(a=> a.id !== id2)
+        agents = newList
+    }
+
+    async function updateAgents(){
+        const start = Date.now()
+        for (let a of agents){
+            a.x = Math.random(),
+            a.y=Math.random()
+
+            // const result = await a.ref.transaction((currVal)=>{
+            //     if(currVal==null) return 
+            //     else return {x:a.x, y:a.y}
+            // })
+            // if(!result.committed){
+            //     console.log('transaction result',result)
+            // }
+           const result = await a.ref.update({x:a.x, y:a.y})
+           console.log(result)
+            // await a.ref.set({x:a.x, y:a.y,id:a.id})
+        }
+        const end = Date.now()
+       // console.log('time to update', end - start)
+        setTimeout(updateAgents,0)
+    }
+    updateAgents()
+
+    async function removeRandom() {
+        if(agents.length > 0){
+            const ag = agents[Math.floor(Math.random() * agents.length)]
+            await rootRef.child(ag.id).remove()
+        }
+    }
+
+    // setInterval(removeRandom,10000)
+
+
+
+
+
+</script>
+
+</html>
