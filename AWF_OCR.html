@@ -1,0 +1,99 @@
+<html>
+    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-analytics.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-database.js"></script>
+    <script type=module>
+        import * as workQ from "https://redfishgroup.github.io/firebase_worker_queue/src/queue.js"
+        import {OCRAlertWildfireImage} from "https://redfishgroup.github.io/redfish-core/lib/alertWildfire/ocr.js"
+
+        const config = {
+            "apiKey": "AIzaSyDZiLOsrcCeYsDe1kGyORPpExVNBwzpmqY",
+            "projectId" : "acequia",
+            "databaseURL": "https://acequia.firebaseio.com/",
+        }
+        firebase.initializeApp(config);
+        const db = firebase.database()
+        const aGoodQueue = db.ref().child('awf_v0').child('workerQueue')
+        window.addTask = function(mediaObj, mediaTimeSec=3*Math.random()){
+            workQ.addTask(aGoodQueue,{
+                mediaObject:mediaObj,
+                mediaTimeSeconds:mediaTimeSec,
+                signed:'horchatasaurus'
+            }) 
+        }
+        addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")
+  
+        // Watch the queue
+        workQ.watchQueue(aGoodQueue, async task => {
+           console.log('Q:',task)
+           const mobj = await getMediaObj(db.ref(), task.mediaObject)
+           console.log('Q2:',mobj)
+           if(!mobj) {
+            workQ.errorTask(aGoodQueue, task, `Media Object Not Found ${task.mediaObject}`)
+            return
+           }
+           if(!mobj.ocrValues) {
+            console.log('found task')
+            try {
+                const ticket = await workQ.claimTask(aGoodQueue, task, "Redolpho the rocket snail")
+                console.log('ticket', ticket)
+                runOCR(aGoodQueue, ticket, mobj) 
+            } catch(err){
+                console.log('failed to claim',err)
+            }
+           }
+        })
+
+        async function getMediaObj(rootRef, url) {
+            const url2 = url.replace('https://acequia.firebaseio.com/','')
+            const ref = rootRef.child(url2)
+            const meob = await ref.once('value')
+            const result = meob.val()
+            return result
+        }
+
+        async function runOCR(ref, task, mediaObj) {
+            console.log('running ocr on', task, mediaObj)
+            const vidDiv = document.createElement('video')
+            vidDiv.src = mediaObj.url
+            vidDiv.preload='auto'
+            vidDiv.muted=true
+            vidDiv.crossOrigin="anonymous"
+            console.log('vid',vidDiv)
+            vidDiv.addEventListener('seeked', async (ev)=>{
+                try{
+                console.log('seeked',ev)
+                const can = vidToCanvas(vidDiv)
+                const result = await OCRAlertWildfireImage(can, 40,'https://redfishgroup.github.io/redfish-core/externalJS/',(msg)=>{
+                    const message=`${msg.status}    ${100*msg.progress}%`
+                    console.info(message)
+                })
+                const dv = document.createElement('div')
+                dv.innerHTML = JSON.stringify(result,0,2)
+                document.body.appendChild(dv)
+                workQ.completeTask(ref, task, {...mediaObj,...result, sponsor:"Northern Mexico Cricket Racing League"})
+            } catch(err){
+                console.error(err)
+                workQ.errorTask(ref,task,err)
+            }
+            })
+
+            vidDiv.currentTime = task.mediaTimeSeconds
+        }
+
+        function vidToCanvas(vid) {
+            const can = document.createElement('canvas')
+            can.crossOrigin="anonymous"
+            can.setAttribute('crossorigin', 'anonymous')
+            can.width = vid.videoWidth
+            can.height = vid.videoHeight
+            const ctx = can.getContext('2d')
+            ctx.drawImage(vid,0,0)
+            document.body.appendChild(can)
+            return can
+        }
+
+
+
+    </script>
+</html>

@@ -27,7 +27,7 @@
     rootRef.set({'hello':'world 2'})
 
     // setup agents
-    const count = 5
+    const count = 100
     let agents= []
     for(let i =0;i<count;i++){
         const id = Math.floor(Math.random()*Number.MAX_SAFE_INTEGER)
@@ -77,26 +77,32 @@
 
     async function updateAgents(){
         const start = Date.now()
+        const transactions = []
         for (let a of agents){
             a.x = Math.random(),
             a.y=Math.random()
 
-            // const result = await a.ref.transaction((currVal)=>{
-            //     if(currVal==null) return 
-            //     else return {x:a.x, y:a.y}
-            // })
+            const result = await a.ref.transaction((currVal)=>{
+                if(currVal==null) return 
+                else return {x:a.x, y:a.y}
+            })
+            transactions.push(result)
             // if(!result.committed){
             //     console.log('transaction result',result)
             // }
-           const result = await a.ref.update({x:a.x, y:a.y})
-           console.log(result)
+        //    const result = await a.ref.update({x:a.x, y:a.y})
+        //    console.log(result)
             // await a.ref.set({x:a.x, y:a.y,id:a.id})
         }
+        const allResults = await Promise.all(transactions)
         const end = Date.now()
-       // console.log('time to update', end - start)
+        console.log('uncommitted transaction:', allResults.map(a=>a.committed).filter(b=>b.committed == false))
+        console.log('time to update', end - start)
         setTimeout(updateAgents,0)
     }
     updateAgents()
+
+
 
     async function removeRandom() {
         if(agents.length > 0){
@@ -105,7 +111,7 @@
         }
     }
 
-    // setInterval(removeRandom,10000)
+    //setInterval(removeRandom,10)
 
 
 
