@@ -1,10 +1,11 @@
 <html>
-    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-analytics.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-database.js"></script>
-    <script type=module>
+<script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-analytics.js"></script>
+<script src="https://www.gstatic.com/firebasejs/7.13.2/firebase-database.js"></script>
+<script type=module>
         import * as workQ from "https://redfishgroup.github.io/firebase_worker_queue/src/queue.js"
         import {OCRAlertWildfireImage} from "https://redfishgroup.github.io/redfish-core/lib/alertWildfire/ocr.js"
+        // import {timeoutDelay} from "https://redfishgroup.github.io/redfish-core/lib/utils/utils.js"
 
         const config = {
             "apiKey": "AIzaSyDZiLOsrcCeYsDe1kGyORPpExVNBwzpmqY",
@@ -13,7 +14,7 @@
         }
         firebase.initializeApp(config);
         const db = firebase.database()
-        const aGoodQueue = db.ref().child('awf_v0').child('workerQueue')
+        const aGoodQueue = db.ref().child('awf_v0').child('workerQueue2')
         window.addTask = function(mediaObj, mediaTimeSec=3*Math.random()){
             workQ.addTask(aGoodQueue,{
                 mediaObject:mediaObj,
@@ -21,13 +22,30 @@
                 signed:'horchatasaurus'
             }) 
         }
+        //test
         addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")
   
         // Watch the queue
+        var queuedTasks=[]
+
+        async function main(){
+            console.log('main')
+            await popNextOffQueue()
+            setTimeout(main, 1000);
+        }
+        main()
+
+
         workQ.watchQueue(aGoodQueue, async task => {
-           console.log('Q:',task)
-           const mobj = await getMediaObj(db.ref(), task.mediaObject)
-           console.log('Q2:',mobj)
+           queuedTasks.push(task)
+        })
+
+
+        async function popNextOffQueue() {
+            const task = queuedTasks.pop()
+            if(!task)return
+            console.log('Q:',task)
+            const mobj = await getMediaObj(db.ref(), task.mediaObject)
            if(!mobj) {
             workQ.errorTask(aGoodQueue, task, `Media Object Not Found ${task.mediaObject}`)
             return
@@ -35,14 +53,16 @@
            if(!mobj.ocrValues) {
             console.log('found task')
             try {
-                const ticket = await workQ.claimTask(aGoodQueue, task, "Redolpho the rocket snail")
-                console.log('ticket', ticket)
-                runOCR(aGoodQueue, ticket, mobj) 
+                await timeoutDelay(Math.random()*2000) // delay it a bit so that one computer does not take every ticket
+                const ticket = await workQ.claimTask(aGoodQueue, task, `Redolpho the rocket snail ${Math.random()}`)
+                console.log('ocr ticket', ticket)
+                await runOCR(aGoodQueue, ticket, mobj) 
+                console.log('done ocr')
             } catch(err){
                 console.log('failed to claim',err)
             }
            }
-        })
+        }
 
         async function getMediaObj(rootRef, url) {
             const url2 = url.replace('https://acequia.firebaseio.com/','')
@@ -52,16 +72,36 @@
             return result
         }
 
+        export const timeoutDelay = (ms) => new Promise((res) => setTimeout(res, ms))
+
+        async function awaitSeekEvent(vidDiv, timeSec){
+
+            const result = new Promise((resolve,reject)=>{
+                const timeoutID = setTimeout(() => {
+                    reject('Failed to get seek event. Might be in background tab')
+                }, 10000);
+                console.log('waiting seek event...')
+                vidDiv.addEventListener('seeked',(ev)=>{
+                    clearTimeout(timeoutID)
+                    console.log('got seek event',ev)
+                    resolve(ev)
+                })
+            })
+
+            vidDiv.currentTime = timeSec
+            return result
+        }
+
         async function runOCR(ref, task, mediaObj) {
             console.log('running ocr on', task, mediaObj)
             const vidDiv = document.createElement('video')
             vidDiv.src = mediaObj.url
-            vidDiv.preload='auto'
+            //vidDiv.preload='auto'
             vidDiv.muted=true
             vidDiv.crossOrigin="anonymous"
-            console.log('vid',vidDiv)
-            vidDiv.addEventListener('seeked', async (ev)=>{
-                try{
+            //setTimeout(()=>{vidDiv.currentTime = task.mediaTimeSeconds},100) 
+            const ev = await awaitSeekEvent(vidDiv,task.mediaTimeSeconds)
+            try{
                 console.log('seeked',ev)
                 const can = vidToCanvas(vidDiv)
                 const result = await OCRAlertWildfireImage(can, 40,'https://redfishgroup.github.io/redfish-core/externalJS/',(msg)=>{
@@ -70,15 +110,13 @@
                 })
                 const dv = document.createElement('div')
                 dv.innerHTML = JSON.stringify(result,0,2)
+                dv.appendChild(can)
                 document.body.appendChild(dv)
                 workQ.completeTask(ref, task, {...mediaObj,...result, sponsor:"Northern Mexico Cricket Racing League"})
             } catch(err){
                 console.error(err)
                 workQ.errorTask(ref,task,err)
             }
-            })
-
-            vidDiv.currentTime = task.mediaTimeSeconds
         }
 
         function vidToCanvas(vid) {
@@ -89,18 +127,18 @@
             can.height = vid.videoHeight
             const ctx = can.getContext('2d')
             ctx.drawImage(vid,0,0)
-            document.body.appendChild(can)
             return can
         }
 
 
 
     </script>
-    <h2>Ready for event</h2>
-    <div><h4>
+<h2>Ready for event</h2>
+<div>
+    <h4>
         Adding an event would look something like this
     </h4>
-        <pre>
+    <pre>
             const db = firebase.database()
             const aGoodQueue = db.ref().child('awf_v0').child('workerQueue')
             window.addTask = function(mediaObj, mediaTimeSec=3*Math.random()){
@@ -112,5 +150,6 @@
             }
             addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")    
         </pre>
-    </div>
+</div>
+
 </html>
