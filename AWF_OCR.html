@@ -96,4 +96,21 @@
 
 
     </script>
+    <h2>Ready for event</h2>
+    <div><h4>
+        Adding an event would look something like this
+    </h4>
+        <pre>
+            const db = firebase.database()
+            const aGoodQueue = db.ref().child('awf_v0').child('workerQueue')
+            window.addTask = function(mediaObj, mediaTimeSec=3*Math.random()){
+                workQ.addTask(aGoodQueue,{
+                    mediaObject:mediaObj,
+                    mediaTimeSeconds:mediaTimeSec,
+                    signed:'horchatasaurus'
+                }) 
+            }
+            addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")    
+        </pre>
+    </div>
 </html>
