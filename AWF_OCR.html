@@ -145,6 +145,9 @@
                 })
                 const dv = document.createElement('div')
                 const myResult = {...result,time:result.date.getTime(), sponsor:"Northern Mexico Cricket Racing League"}
+                myResult.width = can.width
+                myResult.height = can.height
+                myResult.aspectRatio = can.width/can.height
                 console.log({result, myResult})
                 dv.innerHTML = JSON.stringify(result,0,2)
                 dv.appendChild(can)
