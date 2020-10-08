@@ -14,7 +14,7 @@
         }
         firebase.initializeApp(config);
         const db = firebase.database()
-        const aGoodQueue = db.ref().child('awf_v0').child('workerQueue2')
+        const aGoodQueue = db.ref().child('awf_v0').child('OCR_workerQueue')
         window.addTask = async function(mediaObj, mediaTimeSec=3*Math.random()){
             const taskTask = await workQ.addTask(aGoodQueue,{
                 mediaObject:mediaObj,
@@ -41,10 +41,15 @@
         
         // Watch the queue
         var queuedTasks=[]
+        var busyWithTask = false
 
         async function main(){
             console.log('main')
-            await popNextOffQueue()
+            if(!busyWithTask){
+                await popNextOffQueue()
+            } else {
+                console.warn('too busy to take another task now')
+            }
             setTimeout(main, 1000);
         }
         main()
@@ -68,21 +73,22 @@
            }
 
            if(!mobj.ocrValues) {
-            console.log('found task')
-            try {
-                await timeoutDelay(Math.random()*2000) // delay it a bit so that one computer does not take every ticket
-                const ticket = await workQ.claimTask(aGoodQueue, task, `Redolpho the rocket snail ${Math.random()}`)
-                try{
-                    console.log('ocr ticket', ticket)
-                    await runOCR(aGoodQueue, ticket, mobj) 
-                    console.log('done ocr')
+                console.log('found task')
+                busyWithTask = true
+                try {
+                    await timeoutDelay(Math.random()*2000) // delay it a bit so that one computer does not take every ticket
+                    const ticket = await workQ.claimTask(aGoodQueue, task, `Redolpho the rocket snail ${Math.random()}`)
+                    try{
+                        console.log('ocr ticket', ticket)
+                        await runOCR(aGoodQueue, ticket, mobj) 
+                        console.log('done ocr')
+                    } catch(err){
+                        console.error(err)
+                    }
                 } catch(err){
-                    console.error(err)
+                    console.log('failed to claim',err)
                 }
-            } catch(err){
-                console.log('failed to claim',err)
-            }
-           
+                busyWithTask = false
            }
         }
 
