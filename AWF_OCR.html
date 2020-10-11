@@ -45,12 +45,10 @@
 
         async function main(){
             console.log('main')
-            if(!busyWithTask){
+            if(!busyWithTask && !document.hidden){
                 await popNextOffQueue()
-            } else {
-                console.warn('too busy to take another task now')
-            }
-            setTimeout(main, 1000);
+            } 
+            setTimeout(main, 600);
         }
         main()
 
@@ -76,7 +74,7 @@
                 console.log('found task')
                 busyWithTask = true
                 try {
-                    await timeoutDelay(Math.random()*2000) // delay it a bit so that one computer does not take every ticket
+                    await timeoutDelay(Math.random()*200) // delay it a bit so that one computer does not take every ticket
                     const ticket = await workQ.claimTask(aGoodQueue, task, `Redolpho the rocket snail ${Math.random()}`)
                     try{
                         console.log('ocr ticket', ticket)
@@ -145,6 +143,9 @@
             try{
                 console.log('seeked',ev)
                 const can = vidToCanvas(vidDiv)
+                const currDiv = document.getElementById('currImg')
+                currDiv.innerHTML=""
+                currDiv.appendChild(can)
                 const result = await OCRAlertWildfireImage(can,'https://redfishgroup.github.io/redfish-core/externalJS/',(msg)=>{
                     const message=`${msg.status}    ${100*msg.progress}%`
                     console.info(message)
@@ -155,10 +156,11 @@
                 myResult.height = can.height
                 myResult.aspectRatio = can.width/can.height
                 console.log({result, myResult})
-                dv.innerHTML = JSON.stringify(result,0,2)
-                dv.appendChild(can)
+                dv.innerHTML = `${JSON.stringify(result,0,2)}<hr>`
+                //dv.appendChild(can)
                 document.body.appendChild(dv)
                 workQ.completeTask(ref, task, myResult)
+                
             } catch(err){
                 console.error(err)
                 workQ.errorTask(ref,task,err)
@@ -197,5 +199,7 @@
             addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")    
         </pre>
 </div>
+
+<div id=currImg></div>
 
 </html>
