@@ -75,7 +75,7 @@
                 busyWithTask = true
                 try {
                     await timeoutDelay(Math.random()*200) // delay it a bit so that one computer does not take every ticket
-                    const ticket = await workQ.claimTask(aGoodQueue, task, `Redolpho the rocket snail ${Math.random()}`)
+                    const ticket = await workQ.claimTask(aGoodQueue, task, `CS ${Math.random()}`)
                     try{
                         console.log('ocr ticket', ticket)
                         await runOCR(aGoodQueue, ticket, mobj) 
@@ -136,6 +136,11 @@
         async function runOCR(ref, task, mediaObj) {
             console.log('running ocr on', task, mediaObj)
             const vidDiv = document.createElement('video')
+            vidDiv.onerror = (err)=>{
+                cancelSeekWait(vidDiv)
+                console.error(err)
+                workQ.errorTask(ref,task,err)
+            }
             vidDiv.src = mediaObj.src
             vidDiv.preload='auto'
             vidDiv.playsInline = true
@@ -166,6 +171,7 @@
                 workQ.completeTask(ref, task, myResult)
                 displayResult(can, myResult)
             } catch(err){
+                // this is not getting called 
                 console.error(err)
                 workQ.errorTask(ref,task,err)
             }
