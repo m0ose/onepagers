@@ -118,13 +118,13 @@
                 
                 const timeoutID = setTimeout(() => {
                     cancelSeekWait(vidDiv)
-                    reject('Failed to get seek event. Might be in background tab')
+                    reject({msg:'Failed to get seek event. Might be in background tab',requeueTask:true})
                 }, 20000);
        
                 vidDiv.onerror = (err)=>{
                     cancelSeekWait(vidDiv)
                     console.error(err)
-                    reject(err)
+                    reject({requeueTask:false, msg:"Failed to load Video"})
                 }
                 console.log('waiting seek event...')
                 if(timeSec2 ==0) {
@@ -155,7 +155,13 @@
                 cancelSeekWait(vidDiv)
                 console.error(err)
                 // workQ.errorTask(ref,task,err)
-                workQ.changeTaskStatus(ref,task, workQ.STATUSES.avaliable, {requeue:true})
+                if(err.requeueTask){
+                    console.log('requeueing task')
+                    workQ.changeTaskStatus(ref,task, workQ.STATUSES.available, {requeue:true})
+                } else {
+                    console.log('errored task')
+                    workQ.errorTask(ref,task, err)
+                }
                 return
             }
             try{
