@@ -121,6 +121,11 @@
                     reject('Failed to get seek event. Might be in background tab')
                 }, 20000);
        
+                vidDiv.onerror = (err)=>{
+                    cancelSeekWait(vidDiv)
+                    console.error(err)
+                    reject(err)
+                }
                 console.log('waiting seek event...')
                 if(timeSec2 ==0) {
                     vidDiv.onloadeddata = cb
@@ -136,11 +141,6 @@
         async function runOCR(ref, task, mediaObj) {
             console.log('running ocr on', task, mediaObj)
             const vidDiv = document.createElement('video')
-            vidDiv.onerror = (err)=>{
-                cancelSeekWait(vidDiv)
-                console.error(err)
-                workQ.errorTask(ref,task,err)
-            }
             vidDiv.src = mediaObj.src
             vidDiv.preload='auto'
             vidDiv.playsInline = true
@@ -154,7 +154,8 @@
             } catch(err) {
                 cancelSeekWait(vidDiv)
                 console.error(err)
-                workQ.errorTask(ref,task,err)
+                // workQ.errorTask(ref,task,err)
+                workQ.changeTaskStatus(ref,task, workQ.STATUSES.avaliable, {requeue:true})
                 return
             }
             try{
