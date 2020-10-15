@@ -91,12 +91,7 @@ async function awaitSeekEvent(vidDiv, timeSec1) {
     const timeSec2 = Math.max(timeSec1, 0)
 
     const result = new Promise((resolve, reject) => {
-        // decalare callback
-        function cb(ev) {
-            clearTimeout(timeoutID)
-            console.log('got seek event', ev)
-            resolve(true)
-        }
+        
         // Make a timeout
         const timeoutID = setTimeout(() => {
             cancelSeekWait(vidDiv)
@@ -112,14 +107,25 @@ async function awaitSeekEvent(vidDiv, timeSec1) {
             reject({ requeueTask: false, msg: 'Failed to load Video' })
         }
         console.log('waiting seek event...')
-        if (timeSec2 == 0) {
-            vidDiv.onloadeddata = cb
-        } else {
-            vidDiv.onseeked = cb
+        //if (timeSec2 == 0) {
+        vidDiv.onloadeddata = (ev)=>{
+            if (timeSec2 == 0) { 
+                cb(ev) 
+            }
+            else {
+                vidDiv.onseeked = function cb(ev) {
+                    clearTimeout(timeoutID)
+                    console.log('got seek event', ev)
+                    resolve(true)
+                }
+                vidDiv.currentTime = vidDiv.duration * timeSec2
+            }
         }
+        //} else {
+            //vidDiv.onseeked = cb
+        //}
     })
 
-    vidDiv.currentTime = timeSec2
     return result
 }
 
@@ -180,7 +186,7 @@ async function runOCR(ref, task, mediaObj) {
 }
 
 
-window.addTask = async function (mediaObj, mediaTimeSec = 3 * Math.random()) {
+window.addTask = async function (mediaObj, mediaTimeSec = 0) {
     const taskTask = await workQ.addTask(aGoodQueue, {
         mediaObject: mediaObj,
         mediaTimeSeconds: mediaTimeSec,
