@@ -18,15 +18,23 @@ const config = {
 firebase.initializeApp(config)
 const db = firebase.database()
 const aGoodQueue = db.ref().child('awf_v0').child('OCR_workerQueue')
+const VERSION = 0.7 // If you update the version it should reload all of the other pages on the other machines. 
 
-async function main() {
-    console.log('main')
+function main() {
+    polling()
+    initQueueMonitor(aGoodQueue)
+    requeueStailActiveTasksMonitor(aGoodQueue)
+    updateVersion(aGoodQueue)
+}
+setTimeout(main);
+
+async function polling() {
+    console.log('polling')
     if (!busyWithTask && !document.hidden) {
         await popNextOffQueue()
     }
-    setTimeout(main, 600)
+    setTimeout(polling, 600)
 }
-main()
 
 workQ.watchQueue(aGoodQueue, async (task) => {
     queuedTasks.push(task)
@@ -80,6 +88,7 @@ async function getMediaObj(rootRef, url) {
     return result
 }
 
+// todo get from redfish-core
 export const timeoutDelay = (ms) => new Promise((res) => setTimeout(res, ms))
 
 function cancelSeekWait(vidDiv) {
@@ -107,23 +116,19 @@ async function awaitSeekEvent(vidDiv, timeSec1) {
             reject({ requeueTask: false, msg: 'Failed to load Video' })
         }
         console.log('waiting seek event...')
-        //if (timeSec2 == 0) {
         vidDiv.onloadeddata = (ev)=>{
             if (timeSec2 == 0) { 
-                cb(ev) 
+                resolve(true) 
             }
             else {
                 vidDiv.onseeked = function cb(ev) {
                     clearTimeout(timeoutID)
-                    console.log('got seek event', ev)
+                    console.log('got seek event', vidDiv.currentTime, ev)
                     resolve(true)
                 }
                 vidDiv.currentTime = vidDiv.duration * timeSec2
             }
         }
-        //} else {
-            //vidDiv.onseeked = cb
-        //}
     })
 
     return result
@@ -170,6 +175,7 @@ async function runOCR(ref, task, mediaObj) {
         const myResult = {
             ...result,
             time: result.date.getTime(),
+            VERSION,
             sponsor: 'Northern Mexico Cricket Racing League',
         }
         myResult.width = can.width
@@ -259,21 +265,37 @@ function initQueueMonitor(aDecentQueue) {
     })
     //available
 }
-setTimeout(() => {
-    initQueueMonitor(aGoodQueue)
-}, 1);
+
 
 /**
  * Monitor for stuck active tasks.  
  * */
-function requeueStailActiveTasks(aFairQueue) {
+function requeueStailActiveTasksMonitor(aFairQueue) {
     setTimeout(async () => {
             await workQ.requeueStaleActiveTasks(aFairQueue)
-            requeueStailActiveTasks(aFairQueue)
+            requeueStailActiveTasksMonitor(aFairQueue)
     }, 1000);
 }
-requeueStailActiveTasks(aGoodQueue)
 
+/**
+* update version
+* */
+async function updateVersion(ref) {
+    const snap1 = await ref.child('VERSION').once('value')
+    const v = snap1.val()
+    if(v<VERSION) {
+        await ref.child('VERSION').set(VERSION)
+    }
+    ref.child('VERSION').on('value',(snap)=>{
+        const val = snap.val()
+        if(val>VERSION) {
+            setTimeout(() => {
+                console.log('new version avaliable', val, 'reloading')
+                window.location.reload()
+            }, 10000);
+        }
+    })
+}
 
 
     </script>
