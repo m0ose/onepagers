@@ -286,13 +286,15 @@ async function updateVersion(ref) {
     if(v<VERSION) {
         await ref.child('VERSION').set(VERSION)
     }
-    ref.child('VERSION').on('value',(snap)=>{
+    ref.child('VERSION').on('value',async (snap)=>{
         const val = snap.val()
         if(val>VERSION) {
-            setTimeout(() => {
-                console.log('new version avaliable', val, 'reloading')
-                window.location.reload()
-            }, 10000);
+            console.log('new version avaliable', val, ' ... reloading')
+            await timeoutDelay(10000) // wait 10 seconds to slow down a mysterious reload loop
+            for(let i=0; i<100 && busyWithTask;i++){ // wait a maximum of 100 seconds to reload
+                await timeoutDelay(1000)
+            }
+            window.location.reload()
         }
     })
 }
