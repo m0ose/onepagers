@@ -134,6 +134,19 @@ async function awaitSeekEvent(vidDiv, timeSec1) {
     return result
 }
 
+/**
+ * Read that video elements can cause memory leaks. This should fix it. 
+ * Asside from memory, chrome may inhibit some video functions when there a a like 10 un collected video elements. 
+ * */
+function garbageCollectVideoElem(vidDiv){
+    vidDiv.pause();
+    vidDiv.removeAttribute('src'); // empty source
+    vidDiv.load();
+    vidDiv.onerror = null
+    vidDiv.onloadeddata = null
+    vidDiv.onseeked = null
+}
+
 async function runOCR(ref, task, mediaObj) {
     console.log('running ocr on', task, mediaObj)
     const vidDiv = document.createElement('video')
@@ -189,6 +202,7 @@ async function runOCR(ref, task, mediaObj) {
         console.error(err)
         workQ.errorTask(ref, task, err)
     }
+    garbageCollectVideoElem(vidDiv)
 }
 
 
@@ -246,21 +260,21 @@ function displayResult(can, result) {
 
 function initQueueMonitor(aDecentQueue) {
     aDecentQueue
-    console.log({aDecentQueue})
+    // console.log({aDecentQueue})
     aDecentQueue.child('active').on('value',(snap)=>{
-        console.log('active: ',snap.numChildren())
+        // console.log('active: ',snap.numChildren())
         document.getElementById('activeCount').innerHTML = `${snap.numChildren()}`
     })
     aDecentQueue.child('error').on('value',(snap)=>{
-        console.log('error: ',snap.numChildren())
+        // console.log('error: ',snap.numChildren())
         document.getElementById('errorsCount').innerHTML = `${snap.numChildren()}`
     })
     aDecentQueue.child('complete').on('value',(snap)=>{
-        console.log('complete: ',snap.numChildren())
+        // console.log('complete: ',snap.numChildren())
         document.getElementById('completeCount').innerHTML = `${snap.numChildren()}`
     })
     aDecentQueue.child('available').on('value',(snap)=>{
-        console.log('available: ',snap.numChildren())
+        // console.log('available: ',snap.numChildren())
         document.getElementById('availableCount').innerHTML = `${snap.numChildren()}`
     })
     //available
