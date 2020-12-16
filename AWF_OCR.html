@@ -135,8 +135,8 @@ async function awaitSeekEvent(vidDiv, timeSec1) {
 }
 
 /**
- * Read that video elements can cause memory leaks. This should fix it. 
- * Asside from memory, chrome may inhibit some video functions when there a a like 10 un collected video elements. 
+ * I read that video elements can cause memory leaks. This should fix it. 
+ * Asside from memory, chrome may inhibit some video functions when there is like 10 un collected video elements. 
  * */
 function garbageCollectVideoElem(vidDiv){
     vidDiv.pause();
