@@ -5,8 +5,8 @@
 <script type=module>
 import * as workQ from 'https://redfishgroup.github.io/firebase_worker_queue/src/queue.js'
 import { OCRAlertWildfireImage } from 'https://redfishgroup.github.io/redfish-core/lib/alertWildfire/ocr.js'
+import { getAllVideos, searchViddeoURL} from './ocrBatchProcesses.js'
 // import {timeoutDelay} from "https://redfishgroup.github.io/redfish-core/lib/utils/utils.js"
-
 var queuedTasks = []
 var busyWithTask = false
 
@@ -17,8 +17,11 @@ const config = {
 }
 firebase.initializeApp(config)
 const db = firebase.database()
-const aGoodQueue = db.ref().child('awf_v0').child('OCR_workerQueue')
+const awfRef = db.ref().child('awf_v0')
+const aGoodQueue = awfRef.child('OCR_workerQueue')
 const VERSION = 0.8 // If you update the version it should reload all of the other pages on the other machines. 
+
+searchViddeoURL("https://alertwildfirebackup.s3.amazonaws.com/firecams/videos/Axis-BuckinghamPeak2/hourly/2020/231/231_12.mp4", awfRef)
 
 function main() {
     polling()
@@ -56,37 +59,37 @@ async function popNextOffQueue() {
         return
     }
 
-    if (!mobj.ocrValues) {
-        console.log('found task')
-        busyWithTask = true
+
+    console.log('found task')
+    busyWithTask = true
+    try {
+        await timeoutDelay(Math.random() * 200) // delay it a bit so that one computer does not take every ticket
+        const ticket = await workQ.claimTask(
+            aGoodQueue,
+            task,
+            `CS ${Math.random()}`
+        )
         try {
-            await timeoutDelay(Math.random() * 200) // delay it a bit so that one computer does not take every ticket
-            const ticket = await workQ.claimTask(
-                aGoodQueue,
-                task,
-                `CS ${Math.random()}`
-            )
-            try {
-                console.log('ocr ticket', ticket)
-                await runOCR(aGoodQueue, ticket, mobj)
-                console.log('done ocr')
-            } catch (err) {
-                console.error(err)
-            }
+            console.log('ocr ticket', ticket)
+            await runOCR(aGoodQueue, ticket, mobj)
+            console.log('done ocr')
         } catch (err) {
-            console.log('failed to claim', err)
+            console.error(err)
         }
-        busyWithTask = false
+    } catch (err) {
+        console.log('failed to claim', err)
     }
+    busyWithTask = false
+
 }
 
-async function getMediaObj(rootRef, url) {
-    const url2 = url.replace('https://acequia.firebaseio.com/', '')
-    const ref = rootRef.child(url2)
-    const meob = await ref.once('value')
-    const result = meob.val()
-    return result
-}
+// async function getMediaObj(rootRef, url) {
+//     const url2 = url.replace('https://acequia.firebaseio.com/', '')
+//     const ref = rootRef.child(url2)
+//     const meob = await ref.once('value')
+//     const result = meob.val()
+//     return result
+// }
 
 // todo get from redfish-core
 export const timeoutDelay = (ms) => new Promise((res) => setTimeout(res, ms))
@@ -329,18 +332,7 @@ async function updateVersion(ref) {
         <div><b>Errors:</b><span id='errorsCount'></span></div>
         <div><b>Complete:</b><span id='completeCount'></span></div>
     </div>
-    <pre>
-            const db = firebase.database()
-            const aGoodQueue = db.ref().child('awf_v0').child('workerQueue')
-            window.addTask = function(mediaObj, mediaTimeSec=3*Math.random()){
-                workQ.addTask(aGoodQueue,{
-                    mediaObject:mediaObj,
-                    mediaTimeSeconds:mediaTimeSec,
-                    signed:'horchatasaurus'
-                }) 
-            }
-            addTask("https://acequia.firebaseio.com/awf_v0/cameras/58a0233c-83b2-412d-97b2-49ec74d0e9d3/mediaObjects/7056698d-0f1f-44b8-aa3f-e75aa97ee050")    
-        </pre>
+
 </div>
 
 <div id=currImg></div>
