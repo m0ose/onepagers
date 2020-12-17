@@ -18,7 +18,7 @@ const config = {
 firebase.initializeApp(config)
 const db = firebase.database()
 const aGoodQueue = db.ref().child('awf_v0').child('OCR_workerQueue')
-const VERSION = 0.7 // If you update the version it should reload all of the other pages on the other machines. 
+const VERSION = 0.8 // If you update the version it should reload all of the other pages on the other machines. 
 
 function main() {
     polling()
@@ -312,6 +312,8 @@ async function updateVersion(ref) {
         }
     })
 }
+
+
 
 
     </script>
