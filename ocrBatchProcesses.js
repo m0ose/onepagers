@@ -24,12 +24,15 @@ async function searchVideoRecursiveFunction(
     endResult,
     startMediaTime = 0.0,
     endMediaTime = 1.0,
-    minTimeResolution = 0.1
+    minTimeResolution = 0.01
 ) {
-    console.log('b')
+    console.log('panda 0', {startMediaTime, endMediaTime})
+    if(startResult && endResult && !resultsChanged(startResult.result, endResult.result)){
+        return [] // for efficiancy, dont calculate if not needed
+    }
     const duration = endMediaTime - startMediaTime
     const middleTime = startMediaTime + duration / 2
-    let results = []
+    let myResults = []
     let startPromise, endPromise, midPromise
     let midResult
     // OCR start then end then middle
@@ -43,19 +46,19 @@ async function searchVideoRecursiveFunction(
     const fullfilled = await Promise.all([startPromise, endPromise, midPromise])
     if (fullfilled[0]) {
         startResult = fullfilled[0]
-        results.push(startResult)
+        myResults.push(startResult)
     }
     if (fullfilled[1]) {
         endResult = fullfilled[1]
-        results.push(endResult)
+        myResults.push(endResult)
     }
     midResult = fullfilled[2]
-    results.push(midResult)
-
+    myResults.push(midResult)
+    console.log('panda 1', myResults)
     // check for change and if so recurse
     if (resultsChanged(startResult.result, endResult.result)) {
         if (duration / 2 > minTimeResolution) {
-            const leftResults = searchVideoRecursiveFunction(
+            const leftPromise = searchVideoRecursiveFunction(
                 url,
                 mainOCRRef,
                 startResult,
@@ -63,8 +66,7 @@ async function searchVideoRecursiveFunction(
                 startMediaTime,
                 middleTime
             )
-            results = results.concat(leftResults)
-            const rightResults = searchVideoRecursiveFunction(
+            const rightPromise = searchVideoRecursiveFunction(
                 url,
                 mainOCRRef,
                 midResult,
@@ -72,11 +74,14 @@ async function searchVideoRecursiveFunction(
                 middleTime,
                 endMediaTime
             )
-            results = results.concat(rightResults)
+            const [rightResult, leftResult] = await Promise.all([leftPromise, rightPromise])
+            console.log('panda 1b', {leftResult, rightResult})
+            myResults = myResults.concat(leftResult)
+            myResults = myResults.concat(rightResult)
         }
     }
-    console.log(results)
-    return results
+    console.log("panda 2",myResults)
+    return myResults
 }
 
 function resultsChanged(a, b) {
