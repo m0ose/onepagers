@@ -4,39 +4,55 @@ export async function searchVideoURL(url, awfRef) {
     // db.ref().child('awf_v0')
     const ocrRef = awfRef.child('OCR_workerQueue')
     const mediaObjectsRef = awfRef.child('mediaObjects')
-    const keyFramesObjRef = awfRef.child('mediaObjects')
+    const keyFramesObjRef = awfRef.child('keyframes')
     const ocrResults = await searchVideoRecursiveFunction(url, ocrRef)
-    const keyframes = makeKeyframesFromOCRResults(ocrResults,url)
-    const mediaObjs = makeMediaObjsFromOCRResults(ocrResults,url)
-    console.log({ocrResults, keyframes, mediaObjs})
+    const keyframes = makeKeyframesFromOCRResults(ocrResults, url)
+    const mediaObj = makeMediaObjsFromOCRResults(ocrResults, url)
+    console.log({ ocrResults, keyframes, mediaObj })
+    // update firebase
+    keyframes.forEach(async (a) => {
+        const myPath = `${convertNumberToFirebasePath(a.absoluteTime)}/${a.mediaObjectID}`
+        if (myPath) {
+            await keyFramesObjRef.child(myPath).update(a)
+        } else {
+            console.error('did not find guid!', a)
+        }
+    })
+    if (mediaObj.guid) {
+        await mediaObjectsRef.child(mediaObj.guid).update(mediaObj)
+    } else {
+        console.error('did not find guid!', mediaObj)
+    }
 }
 
-function makeKeyframesFromOCRResults(ocrResults, url){
+function makeKeyframesFromOCRResults(ocrResults, url) {
     const guid = makeFirebaseSafeKey(url)
-    const keyFrames = ocrResults.map((a)=>{
+    const keyFrames = ocrResults.map((a) => {
         const ktime = a.result.time
         return {
-            PTZPose:a.result,
+            PTZPose: a.result,
             absoluteTime: ktime,
-            guid:ktime,
-            mediaObjectID: guid
+            guid: ktime,
+            mediaObjectID: guid,
         }
     })
     return keyFrames
 }
 
-function makeMediaObjsFromOCRResults(ocrResults, url){
+function makeMediaObjsFromOCRResults(ocrResults, url) {
     const guid = makeFirebaseSafeKey(url)
-    const keyFrameIDs = ocrResults.map(a=>a.result.time).map(convertNumberToFirebasePath)
-    const keyTimes = ocrResults.map(a=>a.result.time).sort()
+    const keyFrameIDs = ocrResults
+        .map((a) => a.result.time)
+        .map(convertNumberToFirebasePath)
+    const keyTimes = ocrResults.map((a) => a.result.time).sort()
     const minTime = keyTimes[0]
-    const maxTime = keyTimes[keyTimes.length-1]
+    const maxTime = keyTimes[keyTimes.length - 1]
     const aspectRatio = ocrResults[0].result.aspectRatio
     const result = {
         keyFrameIDs,
-        calibratedTime:[minTime, maxTime],
+        calibratedTime: [minTime, maxTime],
         guid,
-        aspectRatio
+        aspectRatio,
     }
     return result
 }
@@ -76,6 +92,7 @@ async function searchVideoRecursiveFunction(
     let startPromise, endPromise, midPromise
     let midResult
     // OCR start then end then middle
+    //
     if (!startResult) {
         startPromise = ocrASingleTime(url, mainOCRRef, startMediaTime)
     }
@@ -94,6 +111,7 @@ async function searchVideoRecursiveFunction(
     }
     midResult = fullfilled[2]
     myResults.push(midResult)
+    //
     console.log('panda 1', myResults)
     // check for change and if so recurse
     if (resultsChanged(startResult.result, endResult.result)) {
@@ -131,7 +149,7 @@ function resultsChanged(a, b) {
     return a.x != b.x || a.y != b.y || a.z != b.z
 }
 
-function convertNumberToFirebasePath(utc){
+function convertNumberToFirebasePath(utc) {
     const str = String(utc)
     const path = str.match(/.{1,2}/g).join('/')
     return path
@@ -144,7 +162,7 @@ function convertNumberToFirebasePath(utc){
  * @param {function} callback
  * @param {Number} minIdleTime
  */
-function monitorForIdle(queueRef, callback, minIdleTime = 15000) {
+export function monitorForIdle(queueRef, callback, minIdleTime = 60000) {
     let timeoutID = undefined
     queueRef.child('available').on('value', (snap) => {
         clearTimeout(timeoutID)
@@ -156,8 +174,6 @@ function monitorForIdle(queueRef, callback, minIdleTime = 15000) {
     })
 }
 
-
-
 function makeFirebaseSafeKey(key) {
     var key2 = String(key)
     var badChars = '.$[]#/ '
@@ -167,7 +183,7 @@ function makeFirebaseSafeKey(key) {
     return key2
 }
 
-// pop urls
+// populate urls
 function populatTheVideoTasks(db) {
     getAllVideos(db.ref()).then(async (vals) => {
         console.log(vals)
@@ -210,25 +226,3 @@ export async function getAllVideos(rootDB) {
     const allVidURLS = walkVideos(val)
     return allVidURLS
 }
-
-async function getMediaObject(dbRef, url) {}
-
-/* Randomize array in-place using Durstenfeld shuffle algorithm */
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[array[i], array[j]] = [array[j], array[i]]
-    }
-}
-
-// setTimeout(async () => {
-//         console.log(await getAllVideos(db.ref()))
-// }, 1000);
-
-function searchWithOCR(
-    media,
-    startMediaTime,
-    endMediaTime,
-    startObj,
-    endData
-) {}
