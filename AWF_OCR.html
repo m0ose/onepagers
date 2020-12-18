@@ -5,7 +5,7 @@
 <script type=module>
 import * as workQ from 'https://redfishgroup.github.io/firebase_worker_queue/src/queue.js'
 import { OCRAlertWildfireImage } from 'https://redfishgroup.github.io/redfish-core/lib/alertWildfire/ocr.js'
-import { getAllVideos, searchViddeoURL} from './ocrBatchProcesses.js'
+import { getAllVideos, searchVideoURL} from './ocrBatchProcesses.js'
 // import {timeoutDelay} from "https://redfishgroup.github.io/redfish-core/lib/utils/utils.js"
 var queuedTasks = []
 var busyWithTask = false
@@ -21,7 +21,7 @@ const awfRef = db.ref().child('awf_v0')
 const aGoodQueue = awfRef.child('OCR_workerQueue')
 const VERSION = 0.8 // If you update the version it should reload all of the other pages on the other machines. 
 
-searchViddeoURL("https://alertwildfirebackup.s3.amazonaws.com/firecams/videos/Axis-AtlasPeakWest/hourly/2020/230/230_13.mp4", awfRef)
+searchVideoURL("https://alertwildfirebackup.s3.amazonaws.com/firecams/videos/Axis-AtlasPeakWest/hourly/2020/230/230_13.mp4", awfRef)
 
 function main() {
     polling()

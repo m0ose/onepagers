@@ -1,16 +1,52 @@
 import * as workQ from 'https://redfishgroup.github.io/firebase_worker_queue/src/queue.js'
 
+export async function searchVideoURL(url, awfRef) {
+    // db.ref().child('awf_v0')
+    const ocrRef = awfRef.child('OCR_workerQueue')
+    const mediaObjectsRef = awfRef.child('mediaObjects')
+    const keyFramesObjRef = awfRef.child('mediaObjects')
+    const ocrResults = await searchVideoRecursiveFunction(url, ocrRef)
+    const keyframes = makeKeyframesFromOCRResults(ocrResults,url)
+    const mediaObjs = makeMediaObjsFromOCRResults(ocrResults,url)
+    console.log({ocrResults, keyframes, mediaObjs})
+}
+
+function makeKeyframesFromOCRResults(ocrResults, url){
+    const guid = makeFirebaseSafeKey(url)
+    const keyFrames = ocrResults.map((a)=>{
+        const ktime = a.result.time
+        return {
+            PTZPose:a.result,
+            absoluteTime: ktime,
+            guid:ktime,
+            mediaObjectID: guid
+        }
+    })
+    return keyFrames
+}
+
+function makeMediaObjsFromOCRResults(ocrResults, url){
+    const guid = makeFirebaseSafeKey(url)
+    const keyFrameIDs = ocrResults.map(a=>a.result.time).map(convertNumberToFirebasePath)
+    const keyTimes = ocrResults.map(a=>a.result.time).sort()
+    const minTime = keyTimes[0]
+    const maxTime = keyTimes[keyTimes.length-1]
+    const aspectRatio = ocrResults[0].result.aspectRatio
+    const result = {
+        keyFrameIDs,
+        calibratedTime:[minTime, maxTime],
+        guid,
+        aspectRatio
+    }
+    return result
+}
+
 async function ocrASingleTime(url, mainOCRRef, mediaTimeSec) {
-    // const mediaObjRef = awfRef.child('mediaObjects')
-    // const keyFramesObjRef = awfRef.child('mediaObjects')
-    console.log('c')
-    //
     const taskTask = await workQ.addTask(mainOCRRef, {
         mediaObject: { src: url },
         mediaTimeSeconds: mediaTimeSec,
         signed: 'dumple-minkin-stein',
     })
-
     console.log('Task Description:', taskTask)
     const a = await workQ.taskListenerPromise(mainOCRRef, taskTask)
     console.log('done with task', a)
@@ -26,8 +62,12 @@ async function searchVideoRecursiveFunction(
     endMediaTime = 1.0,
     minTimeResolution = 0.01
 ) {
-    console.log('panda 0', {startMediaTime, endMediaTime})
-    if(startResult && endResult && !resultsChanged(startResult.result, endResult.result)){
+    console.log('panda 0', { startMediaTime, endMediaTime })
+    if (
+        startResult &&
+        endResult &&
+        !resultsChanged(startResult.result, endResult.result)
+    ) {
         return [] // for efficiancy, dont calculate if not needed
     }
     const duration = endMediaTime - startMediaTime
@@ -74,13 +114,16 @@ async function searchVideoRecursiveFunction(
                 middleTime,
                 endMediaTime
             )
-            const [rightResult, leftResult] = await Promise.all([leftPromise, rightPromise])
-            console.log('panda 1b', {leftResult, rightResult})
+            const [rightResult, leftResult] = await Promise.all([
+                leftPromise,
+                rightPromise,
+            ])
+            console.log('panda 1b', { leftResult, rightResult })
             myResults = myResults.concat(leftResult)
             myResults = myResults.concat(rightResult)
         }
     }
-    console.log("panda 2",myResults)
+    console.log('panda 2', myResults)
     return myResults
 }
 
@@ -88,14 +131,32 @@ function resultsChanged(a, b) {
     return a.x != b.x || a.y != b.y || a.z != b.z
 }
 
-export async function searchViddeoURL(url, awfRef) {
-    // db.ref().child('awf_v0')
-    console.log('a')
-    const ocrRef = awfRef.child('OCR_workerQueue')
-    const mediaObjectsRef = awfRef.child('mediaObjects')
-    const keyFramesObjRef = awfRef.child('mediaObjects')
-    searchVideoRecursiveFunction(url, ocrRef)
+function convertNumberToFirebasePath(utc){
+    const str = String(utc)
+    const path = str.match(/.{1,2}/g).join('/')
+    return path
 }
+
+/**
+ * Monitor avaliable tasks for nothing happening. Calls callback when nothing is happening.
+ *
+ * @param {ref to queue} queueRef
+ * @param {function} callback
+ * @param {Number} minIdleTime
+ */
+function monitorForIdle(queueRef, callback, minIdleTime = 15000) {
+    let timeoutID = undefined
+    queueRef.child('available').on('value', (snap) => {
+        clearTimeout(timeoutID)
+        timeoutID = undefined
+        const count = snap.numChildren()
+        if (count === 0) {
+            timeoutID = setTimeout(callback, minIdleTime)
+        }
+    })
+}
+
+
 
 function makeFirebaseSafeKey(key) {
     var key2 = String(key)
@@ -151,25 +212,6 @@ export async function getAllVideos(rootDB) {
 }
 
 async function getMediaObject(dbRef, url) {}
-
-/**
- * Monitor avaliable tasks for nothing happening. Calls callback when nothing is happening.
- *
- * @param {ref to queue} queueRef
- * @param {function} callback
- * @param {Number} minIdleTime
- */
-function monitorForIdle(queueRef, callback, minIdleTime = 15000) {
-    let timeoutID = undefined
-    queueRef.child('available').on('value', (snap) => {
-        clearTimeout(timeoutID)
-        timeoutID = undefined
-        const count = snap.numChildren()
-        if (count === 0) {
-            timeoutID = setTimeout(callback, minIdleTime)
-        }
-    })
-}
 
 /* Randomize array in-place using Durstenfeld shuffle algorithm */
 function shuffleArray(array) {
