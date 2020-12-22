@@ -1,6 +1,74 @@
 import * as workQ from 'https://redfishgroup.github.io/firebase_worker_queue/src/queue.js'
 
-export async function searchVideoURL(url, awfRef) {
+/**
+ * Claim the next next batch OCR task
+ * @public
+ * @param {Firebase ref} awfRef 
+ */
+export async function claimBatchVideoTask(awfRef) {
+    const batchTasksRef = awfRef.child('ocr_batch_tasks')
+    //https://acequia.firebaseio.com/awf_v0/ocr_batch_tasks
+    // workQ.watchQueueAsync(batchTasksRef, async (task)=>{
+    const task = await workQ.getTask(batchTasksRef, 'available')
+    let ticket
+    try {
+        ticket = await workQ.claimTask(batchTasksRef, task, 'the dandilorian')
+    } catch (err) {
+        console.log(err)
+        // failed to claim
+        return
+    }
+    try {
+        const ocrResult = await searchVideoURL(ticket.url, awfRef)
+        await workQ.completeTask(batchTasksRef, ticket, ocrResult)
+    } catch (err) {
+        console.error(err)
+        console.error('Failed on', ticket.url)
+        await workQ.errorTask(batchTasksRef, ticket, err)
+    }
+}
+
+
+/**
+ * Monitor avaliable tasks for when nothing is happening and call the callback when it's idle.
+ *
+ * @public
+ * @param {ref to queue} queueRef
+ * @param {function} callback
+ * @param {Number} minIdleTime - How long to wait for idle queue
+ * @param {Boolean} watchActiveList - Call callback when active list is also empty. This is ooff by default
+ */
+export function monitorForIdle(
+    queueRef,
+    callback,
+    minIdleTime = 60000,
+    watchActiveList = false
+) {
+    let timeoutID = undefined
+    function innerCallback(snap) {
+        clearTimeout(timeoutID)
+        timeoutID = undefined
+        const count = snap.numChildren()
+        if (count === 0) {
+            timeoutID = setTimeout(callback, minIdleTime)
+        }
+    }
+    queueRef.child('available').on('value', async (snap) => {
+        innerCallback(snap)
+    })
+    if (watchActiveList) {
+        queueRef.child('active').on('value', async (snap) => {
+            innerCallback(snap)
+        })
+    }
+}
+
+/**
+ * Search video url for changes in the orientation using OCR, and place results on firebase. 
+ * @param {String} url - url of video to search
+ * @param {*} awfRef - Firebase ref to place results in
+ */
+async function searchVideoURL(url, awfRef) {
     // db.ref().child('awf_v0')
     const ocrRef = awfRef.child('OCR_workerQueue')
     const mediaObjectsRef = awfRef.child('mediaObjects')
@@ -11,7 +79,9 @@ export async function searchVideoURL(url, awfRef) {
     console.log({ ocrResults, keyframes, mediaObj })
     // update firebase
     keyframes.forEach(async (a) => {
-        const myPath = `${convertNumberToFirebasePath(a.absoluteTime)}/${a.mediaObjectID}`
+        const myPath = `${convertNumberToFirebasePath(a.absoluteTime)}/${
+            a.mediaObjectID
+        }`
         if (myPath) {
             await keyFramesObjRef.child(myPath).update(a)
         } else {
@@ -23,8 +93,15 @@ export async function searchVideoURL(url, awfRef) {
     } else {
         console.error('did not find guid!', mediaObj)
     }
+    return { ocrResults, keyframes, mediaObj }
 }
 
+/**
+ * 
+ * @private
+ * @param {Object} ocrResults 
+ * @param {String} url 
+ */
 function makeKeyframesFromOCRResults(ocrResults, url) {
     const guid = makeFirebaseSafeKey(url)
     const keyFrames = ocrResults.map((a) => {
@@ -39,6 +116,11 @@ function makeKeyframesFromOCRResults(ocrResults, url) {
     return keyFrames
 }
 
+/**
+ * @private
+ * @param {Object} ocrResults 
+ * @param {String} url 
+ */
 function makeMediaObjsFromOCRResults(ocrResults, url) {
     const guid = makeFirebaseSafeKey(url)
     const keyFrameIDs = ocrResults
@@ -57,11 +139,17 @@ function makeMediaObjsFromOCRResults(ocrResults, url) {
     return result
 }
 
-async function ocrASingleTime(url, mainOCRRef, mediaTimeSec) {
+/**
+ * 
+ * @param {String} url 
+ * @param {Firebase ref} mainOCRRef 
+ * @param {Number} mediaTimeRatio - number from 0 to 1. 0 being the start and 1 being the end
+ */
+async function ocrASingleTime(url, mainOCRRef, mediaTimeRatio) {
     const taskTask = await workQ.addTask(mainOCRRef, {
         mediaObject: { src: url },
-        mediaTimeSeconds: mediaTimeSec,
-        signed: 'dumple-minkin-stein',
+        mediaTimeSeconds: mediaTimeRatio,
+        signed: 'alpha-bravo-niner',
     })
     console.log('Task Description:', taskTask)
     const a = await workQ.taskListenerPromise(mainOCRRef, taskTask)
@@ -69,6 +157,17 @@ async function ocrASingleTime(url, mainOCRRef, mediaTimeSec) {
     return a
 }
 
+/**
+ * This is the work horse of the ocr search. 
+ * @private
+ * @param {String} url 
+ * @param {Firebase ref} mainOCRRef 
+ * @param {*} startResult 
+ * @param {*} endResult 
+ * @param {*} startMediaTime 
+ * @param {*} endMediaTime 
+ * @param {*} minTimeResolution 
+ */
 async function searchVideoRecursiveFunction(
     url,
     mainOCRRef,
@@ -78,7 +177,6 @@ async function searchVideoRecursiveFunction(
     endMediaTime = 1.0,
     minTimeResolution = 0.01
 ) {
-    console.log('panda 0', { startMediaTime, endMediaTime })
     if (
         startResult &&
         endResult &&
@@ -112,7 +210,7 @@ async function searchVideoRecursiveFunction(
     midResult = fullfilled[2]
     myResults.push(midResult)
     //
-    console.log('panda 1', myResults)
+
     // check for change and if so recurse
     if (resultsChanged(startResult.result, endResult.result)) {
         if (duration / 2 > minTimeResolution) {
@@ -136,12 +234,12 @@ async function searchVideoRecursiveFunction(
                 leftPromise,
                 rightPromise,
             ])
-            console.log('panda 1b', { leftResult, rightResult })
+
             myResults = myResults.concat(leftResult)
             myResults = myResults.concat(rightResult)
         }
     }
-    console.log('panda 2', myResults)
+
     return myResults
 }
 
@@ -149,30 +247,17 @@ function resultsChanged(a, b) {
     return a.x != b.x || a.y != b.y || a.z != b.z
 }
 
+/**
+ * This parses the UTC into a path of 2 digit chunks. 
+ * @param {int} utc 
+ */
 function convertNumberToFirebasePath(utc) {
     const str = String(utc)
     const path = str.match(/.{1,2}/g).join('/')
     return path
 }
 
-/**
- * Monitor avaliable tasks for nothing happening. Calls callback when nothing is happening.
- *
- * @param {ref to queue} queueRef
- * @param {function} callback
- * @param {Number} minIdleTime
- */
-export function monitorForIdle(queueRef, callback, minIdleTime = 60000) {
-    let timeoutID = undefined
-    queueRef.child('available').on('value', (snap) => {
-        clearTimeout(timeoutID)
-        timeoutID = undefined
-        const count = snap.numChildren()
-        if (count === 0) {
-            timeoutID = setTimeout(callback, minIdleTime)
-        }
-    })
-}
+
 
 function makeFirebaseSafeKey(key) {
     var key2 = String(key)
@@ -181,48 +266,4 @@ function makeFirebaseSafeKey(key) {
         key2 = key2.split(i).join('')
     }
     return key2
-}
-
-// populate urls
-function populatTheVideoTasks(db) {
-    getAllVideos(db.ref()).then(async (vals) => {
-        console.log(vals)
-        const anOKQueue = db.ref().child('awf_v0').child('ocr_batch_tasks')
-        vals.forEach(async (url) => {
-            console.log('url')
-            const task = await workQ.addTask(anOKQueue, {
-                url: url,
-                signed: 'blobatron',
-            })
-            console.log('  ', task)
-        })
-    })
-}
-
-/**
- * Get video urls
- *
- * @param {ref to acequia} rootDB
- * @returns {String[]} allVidURLS
- */
-export async function getAllVideos(rootDB) {
-    const ref = rootDB.child('/alertwildfirebackup/firecams/videos')
-    const snap = await ref.once('value')
-    const val = snap.val()
-    // gather all of the videos in the nested object list on firebase.
-    function walkVideos(a) {
-        let res = []
-        for (const i in a) {
-            if (typeof a[i] === 'object' && a[i] !== null) {
-                const b = walkVideos(a[i])
-                if (b) res = res.concat(b)
-            } else if (i == 'url') {
-                res.push(a[i])
-            }
-        }
-        return res
-    }
-
-    const allVidURLS = walkVideos(val)
-    return allVidURLS
 }

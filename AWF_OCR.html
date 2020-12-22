@@ -5,7 +5,7 @@
 <script type=module>
 import * as workQ from 'https://redfishgroup.github.io/firebase_worker_queue/src/queue.js'
 import { OCRAlertWildfireImage } from 'https://redfishgroup.github.io/redfish-core/lib/alertWildfire/ocr.js'
-import { getAllVideos, searchVideoURL, monitorForIdle} from './ocrBatchProcesses.js'
+import { monitorForIdle, claimBatchVideoTask} from './ocrBatchProcesses.js'
 // import {timeoutDelay} from "https://redfishgroup.github.io/redfish-core/lib/utils/utils.js"
 var queuedTasks = []
 var busyWithTask = false
@@ -21,16 +21,19 @@ const awfRef = db.ref().child('awf_v0')
 const aGoodQueue = awfRef.child('OCR_workerQueue')
 const VERSION = 0.7 // If you update the version it should reload all of the other pages on the other machines. 
 
-searchVideoURL("https://alertwildfirebackup.s3.amazonaws.com/firecams/videos/Axis-AtlasPeakWest/hourly/2020/230/230_13.mp4", awfRef)
-monitorForIdle(aGoodQueue, ()=>{
-    console.log('panda idle', new Date())
-})
+
 
 function main() {
     polling()
     initQueueMonitor(aGoodQueue)
     requeueStailActiveTasksMonitor(aGoodQueue)
     updateVersion(aGoodQueue)
+    // the block below monitors the queue and triggers the batch process when it is idle. 
+    monitorForIdle(aGoodQueue, ()=>{
+        console.log('panda idle', new Date())
+        claimBatchVideoTask(awfRef)
+    },30000)
+
 }
 setTimeout(main);
 
