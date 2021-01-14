@@ -1,0 +1,255 @@
+<html>
+    <head>
+        <title>Cellular Potts Model</title>
+    </head>
+    <body>
+        <script type="module">
+            // Here are a bunch of simple "AS" changes, commented.
+            // Alas, vscode & prettier screwed up the formatting, sigh!
+            // One thing I didn't try to fix: models typically have
+            // no view stuff, like colors. But Josh and I go back and forth on
+            // this and this may be perfectly reasonable. But if there is a way
+            // to infer all color info from the Potts variables, that's best.
+            // Stephen and I agree: You know a model is cool when you can't
+            // stop running it! This is one of those. Sweet!
+
+            /**
+
+                Cellular Potts model in Agent Script.
+                Cody Smith 2020
+            */
+            import {
+                World,
+                Model,
+                util,
+            } from 'https://agentscript.org/dist/agentscript.esm.js'
+            import TwoDraw from 'https://agentscript.org/src/TwoDraw.js'
+            import ColorMap from 'https://agentscript.org/src/ColorMap.js'
+            import Color from 'https://agentscript.org/src/Color.js'
+            import RGBDataSet from 'https://agentscript.org/src/RGBDataSet.js'
+
+            class PottsModel extends Model {
+                static defaultOptions() {
+                    return {
+                        T: 0.1, //Boltzman temperature
+                        mu: 0, // constant for how strong to follow chemical gradient
+                        lambda: 1, // strength of volume constraint
+                        exploreEmptyK : 0.08,
+                        repulsionK : 0.2,
+                        imageEdgeAtraction:1000
+                    }
+                }
+
+                constructor(worldOptions = World.defaultOptions(48, 48)) {
+                    super(worldOptions)
+                    Object.assign(this, PottsModel.defaultOptions())
+                }
+
+                async loadBaseConcentration(){
+                    const url = './data/baby_ophelia_sillouette.png'
+                    const img = await util.imagePromise(url)
+                    const ds = new RGBDataSet(img,(r,g,b)=>{return Math.hypot(r,g,b)})
+                    const max = ds.max()
+                    const ds1 = ds.map(x=>1-x/max)                   
+                    const ds2 = ds1.resample(this.world.width,this.world.height, false)
+                    const edges = ds2.laplace4()
+                    const ds3 = ds2.blur()
+                    for(let i=0; i<ds3.data.length; i++) {
+                        ds3.data[i] = Math.max(0,ds3.data[i] - 0.6*edges.data[i])
+                    }
+                    console.log(ds3)
+                    return ds3
+                }
+
+                async setup() {
+                    this.cells = [{ followGradient: false }]
+                    this.patches.ask(p => {
+                        p.concentration = (p.x + p.y + 48 * 2) / 96
+                        p.cellID = 0
+                    })
+                    this.loadBaseConcentration().then((ds)=>{
+                        console.log(ds)
+                             this.patches.ask(p => {
+                                const pix = ds.sample(p.x - this.world.minX , p.y-this.world.minY)
+                                p.concentration = Math.abs(pix)
+                        })
+                    })
+               
+
+                    // put the cells down
+                    for (let y = -40; y < 40; y += 4) {
+                        for (let x = -35; x < 35; x += 4) {
+                            this.addCell(
+                                x ,
+                                y,
+                                2,
+                                true
+                            )
+                        }
+                    }
+                }
+
+                addCell(x, y, r = 10, followGradient = true) {
+                    let id = this.cells.length
+                    this.cells.push({
+                        followGradient,
+                        targetArea: 3.14 * r * r,
+                    })
+                    this.patches
+                        .inRadius(this.patches.patchXY(x, y), r)
+                        .ask(p => {
+                            p.cellID = id
+                        })
+                }
+
+                step() {
+                    const T = this.T // Boltzmann temperature. What is this exactly?
+                    const mu = this.mu // strength of chemical gradient following behavior
+                    const steplets = 3000
+                    console.time('step')
+                    let nrg1 = this.calcEnergy()
+                    for (let i = 0; i < steplets; i++) {
+                        // do a lot of tries before drawing for speed
+                        let p1 = this.patches.oneOf()
+                        let p2 = p1.neighbors4.oneOf()
+                        if (p1.cellID != p2.cellID) {
+                            // for efficiancy only move if cellIDs differ
+                            const oldP2CellID = p2.cellID
+                            p2.cellID = p1.cellID
+                            let nrg2 = this.calcEnergy()
+                            let dNrg1 = nrg2 - nrg1
+                            let chemoGradient =
+                                p2.concentration - p1.concentration
+                            if (!this.cells[p1.cellID].followGradient)
+                                chemoGradient = 0
+                            let dNrg2 = dNrg1 - mu * chemoGradient
+                            let prob = Math.random() < Math.exp(-dNrg2 / T)
+                            if (dNrg2 < 0 || prob) {
+                                nrg1 = nrg2 // keep change
+                            } else {
+                                //
+                                p2.cellID = oldP2CellID // undo change
+                            }
+                            // console.log(dNrg)
+                        }
+                    }
+                    console.timeEnd('step')
+                }
+
+                calcEnergy() {
+                    const lambda = this.lambda
+                    let totalTerm1 = 0
+                    this.patches.ask(p => {
+                        let J = this.adhesion(p)
+                        totalTerm1 += J
+                    })
+                    let totalTerm2 = 0
+                    const areas = this.getAreas()
+                    const cnt = this.sumConcentrations()
+                    for (let i = 1; i < this.cells.length; i++) {
+                        // iterate through cell types.
+                        let vdelta = (this.cells[i].targetArea - areas[i] ) ** 2
+                        totalTerm2 += vdelta
+                    }
+
+                    let totalTerm3 = 0
+                    for (let i = 1; i < this.cells.length; i++) {
+                        // iterate through cell types.
+                        let vdelta = (1/(1+cnt[i]) ) ** 2
+                        totalTerm3 += vdelta
+                    }
+              
+                    //console.log(cnt)
+                    const total = totalTerm1  + lambda*totalTerm2 + this.imageEdgeAtraction*totalTerm3
+                    return total
+                }
+
+                adhesion(p1) {
+                    let total = 0
+                    p1.neighbors4.ask(pnei => {
+                        if (p1.cellID == pnei.cellID) total += 0.0
+                        // kronicker delta part of equation
+                        else if (p1.cellID == 0 || pnei.cellID == 0)
+                            total += this.exploreEmptyK//0.08
+                        // one is empty
+                        else total += this.repulsionK //0.4 // different cell types
+                    })
+                    return total
+                }
+
+                getAreas() {
+                    const areas = []
+                    this.patches.ask(p => {
+                        if (!areas[p.cellID]) areas[p.cellID] = 0
+                        areas[p.cellID]++
+                    })
+                    return areas
+                }
+
+                sumConcentrations() {
+                    const concentrations = []
+                    this.patches.ask(p => {
+                        if (!concentrations[p.cellID]) concentrations[p.cellID] = 0
+                        concentrations[p.cellID] = concentrations[p.cellID] + p.concentration
+                    })
+                    return concentrations
+                }
+            }
+
+            /**
+                    DRAWING
+            */
+            const patchColors = ColorMap.Gray
+            const cellColors = ColorMap.Bright16
+
+            /**
+                    Run the model
+            */
+            async function run() {
+                const model = new PottsModel()
+                window.model = model // debug
+                await model.startup()
+                model.setup()
+
+                const view = new TwoDraw(
+                    model,
+                    {
+                        div: 'modelDiv',
+                        patchSize: 6, // Helps me debug, can ignore.
+                    },
+                    {
+                        patchesColor: p =>
+                            p.cellID > 0
+                                ? cellColors[p.cellID % cellColors.length].pixel
+                                : patchColors.scaleColor(p.concentration, 0, 1)
+                                      .pixel,
+                    }
+                )
+
+                // This is where smoothing would be set but it didn't seem needed.
+                // view.setPatchesSmoothing(true)
+
+                await util.timeoutLoop(
+                    () => {
+                        model.step()
+                        view.draw()
+                    },
+                    10000, // if you want "forever" use -1
+                    15
+                )
+            }
+            run()
+        </script>
+        <div>
+            <h1>
+                Cellular Potts Model
+            </h1>
+            <h3>Cody Smith and Owen Densmore 2021</h3>
+            <div id="modelDiv"></div>
+
+            <ul>
+                <li>It is based on the Wikipedia description of the metropolis style Cellular Potts model found here, <a href="https://en.wikipedia.org/wiki/Cellular_Potts_model">https://en.wikipedia.org/wiki/Cellular_Potts_model</a></li>
+            </ul>
+        </div>
+    </body>
+</html>
